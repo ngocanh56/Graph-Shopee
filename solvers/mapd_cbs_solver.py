@@ -1,28 +1,3 @@
-"""
-MAPDCBSSolver — Multi-Agent Pickup & Delivery với Conflict-Based Search (CBS).
-
-Cấu trúc đúng chuẩn CBS (2 tầng):
-
-  Tầng MAPD (gán nhiệm vụ):
-      Mỗi shipper rảnh nhận 1 đơn (pickup -> deliver). Đây là phần
-      "Pickup and Delivery": biến đơn hàng thành mục tiêu di chuyển cho agent.
-
-  Tầng cao CBS (constraint tree):
-      - Lập kế hoạch đường đi cho tất cả agent (độc lập) ở node gốc.
-      - Tìm xung đột ĐẦU TIÊN giữa các đường đi (đụng ô / hoán đổi ô).
-      - Tách node thành 2 con, mỗi con thêm 1 RÀNG BUỘC cấm một agent đi vào
-        (ô, thời điểm) đang tranh chấp, rồi lập lại đường đi của riêng agent đó.
-      - Mở rộng node có chi phí thấp nhất tới khi không còn xung đột.
-
-  Tầng thấp (low-level):
-      Space-time A* cho 1 agent, tôn trọng tập ràng buộc được truyền xuống.
-
-CBS xử lý "xung đột đa tác tử" một cách tường minh qua cây ràng buộc — khác hẳn
-prioritized planning. Để hợp với bài toán ONLINE (đơn xuất hiện dần, chạy T bước),
-ta dùng CBS theo CỬA SỔ thời gian (windowed): chỉ giải xung đột trong WINDOW bước
-kế tiếp rồi thực thi 1 bước, lặp lại ở bước sau.
-"""
-
 from __future__ import annotations
 
 import heapq
@@ -39,18 +14,15 @@ Cell = Tuple[int, int]
 class MAPDCBSSolver(Solver):
     method_name = "MAPDCBSSolver"
 
-    WINDOW = 10            # số bước nhìn trước để giải xung đột
-    MAX_CBS_NODES = 50     # trần số node trong cây ràng buộc / 1 bước (chặn xác định)
+    WINDOW = 10
+    MAX_CBS_NODES = 50
 
     def __init__(self, env: DeliveryEnv):
         super().__init__(env)
-        self.N = self.cfg["N"]
-        self.task: Dict[int, int] = {}          # shipper_id -> order_id đang đi nhặt (-1 nếu chưa)
-        self._dmaps: Dict[Cell, List[List[int]]] = {}   # cache BFS từ goal
+        self.N = self.env.N
+        self.task: Dict[int, int] = {}
+        self._dmaps: Dict[Cell, List[List[int]]] = {}
 
-    # ==================================================================
-    # Khoảng cách trên lưới (BFS flood từ goal, cache theo goal)
-    # ==================================================================
     def _dist_map(self, goal: Cell) -> List[List[int]]:
         dm = self._dmaps.get(goal)
         if dm is not None:
@@ -79,7 +51,7 @@ class MAPDCBSSolver(Solver):
 
     def _neighbors(self, cell: Cell) -> List[Cell]:
         r, c = cell
-        res = [cell]  # đứng yên (wait)
+        res = [cell]
         for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             nr, nc = r + dr, c + dc
             if 0 <= nr < self.N and 0 <= nc < self.N and self.grid[nr][nc] == 0:
@@ -94,19 +66,9 @@ class MAPDCBSSolver(Solver):
         if dc == -1: return "L"
         if dc == 1:  return "R"
         return "S"
-
-    # ==================================================================
-    # TẦNG THẤP: space-time A* cho 1 agent với ràng buộc + chướng ngại tĩnh
-    # ==================================================================
+    
     def _low_level(self, start: Cell, goal: Cell,
                    vcons: set, econs: set, static: frozenset) -> List[Cell]:
-        """
-        Trả đường đi [start, ..., goal] (theo thời gian tương đối 0..L).
-        vcons: tập (r, c, t)        — cấm Ở ô (r,c) tại thời điểm t.
-        econs: tập (r, c, nr, nc, t) — cấm ĐI từ (r,c)->(nr,nc) tại thời điểm t.
-        static: ô bị chiếm vĩnh viễn bởi agent đứng yên (idle).
-        Nếu không tới được goal trong WINDOW bước, trả đường tiến gần goal nhất.
-        """
         h0 = self._dist(start, goal)
         if h0 >= LARGE:
             return [start]
@@ -142,9 +104,6 @@ class MAPDCBSSolver(Solver):
 
         return list(best_path)
 
-    # ==================================================================
-    # Phát hiện xung đột ĐẦU TIÊN giữa các đường đi (căn theo thời gian)
-    # ==================================================================
     def _first_conflict(self, paths: Dict[int, List[Cell]]):
         ids = list(paths)
         if len(ids) < 2:
@@ -156,14 +115,12 @@ class MAPDCBSSolver(Solver):
             return p[k] if k < len(p) else p[-1]
 
         for k in range(L):
-            # Xung đột ô: 2 agent cùng 1 ô tại thời điểm k
             occ: Dict[Cell, int] = {}
             for a in ids:
                 c = at(a, k)
                 if c in occ:
                     return ("vertex", occ[c], a, c, k)
                 occ[c] = a
-            # Xung đột cạnh: 2 agent hoán đổi ô giữa k và k+1
             if k + 1 < L:
                 mv = {a: (at(a, k), at(a, k + 1)) for a in ids}
                 for i, a in enumerate(ids):
@@ -176,9 +133,6 @@ class MAPDCBSSolver(Solver):
                             return ("edge", a, b, (fa, ta), (fb, tb), k)
         return None
 
-    # ==================================================================
-    # TẦNG CAO: Conflict-Based Search trên cây ràng buộc
-    # ==================================================================
     def _cbs(self, agents: List[Tuple[int, Cell, Cell]],
              static: frozenset) -> Dict[int, List[Cell]]:
         if not agents:
@@ -189,7 +143,6 @@ class MAPDCBSSolver(Solver):
             s, g = info[aid]
             return self._low_level(s, g, cons[0], cons[1], static)
 
-        # Node gốc: lập kế hoạch độc lập cho từng agent
         cons0 = {aid: (set(), set()) for aid, _, _ in agents}
         paths0 = {aid: plan(aid, cons0[aid]) for aid, _, _ in agents}
         cost0 = sum(len(p) for p in paths0.values())
@@ -206,9 +159,8 @@ class MAPDCBSSolver(Solver):
             incumbent = paths
             conflict = self._first_conflict(paths)
             if conflict is None:
-                return paths  # đã hết xung đột
+                return paths
 
-            # Tách 2 nhánh: mỗi nhánh ràng buộc 1 trong 2 agent tranh chấp
             if conflict[0] == "vertex":
                 _, a1, a2, cell, k = conflict
                 branches = [(a1, ("v", cell, k)), (a2, ("v", cell, k))]
@@ -233,11 +185,8 @@ class MAPDCBSSolver(Solver):
                 heapq.heappush(heap, (new_cost, counter, new_cons, new_paths))
                 counter += 1
 
-        return incumbent  # hết ngân sách: trả lời tốt nhất tới giờ
+        return incumbent
 
-    # ==================================================================
-    # TẦNG MAPD: gán/duy trì nhiệm vụ cho shipper (mỗi lần 1 đơn)
-    # ==================================================================
     def _validate_tasks(self, shippers: List[Shipper], orders: Dict[int, Order]) -> None:
         for sh in shippers:
             oid = self.task.get(sh.id, -1)
@@ -245,7 +194,7 @@ class MAPDCBSSolver(Solver):
                 continue
             o = orders.get(oid)
             if o is None or o.delivered or (o.picked and oid not in sh.bag):
-                self.task[sh.id] = -1  # đơn đã mất / bị shipper khác nhặt
+                self.task[sh.id] = -1
 
     def _assign(self, shippers: List[Shipper], orders: Dict[int, Order]) -> None:
         claimed = {self.task.get(sh.id, -1) for sh in shippers}
@@ -268,9 +217,6 @@ class MAPDCBSSolver(Solver):
                 claimed.add(o.id)
                 break
 
-    # ==================================================================
-    # VÒNG LẶP CHÍNH (online)
-    # ==================================================================
     def run(self) -> dict:
         start_time = time.time()
         obs = self.env.reset()
@@ -279,14 +225,12 @@ class MAPDCBSSolver(Solver):
             shippers: List[Shipper] = obs["shippers"]
             orders: Dict[int, Order] = obs["orders"]
 
-            if len(self._dmaps) > 512:      # giới hạn bộ nhớ cache khoảng cách
+            if len(self._dmaps) > 512:
                 self._dmaps.clear()
 
-            # 1) MAPD: duy trì + gán nhiệm vụ
             self._validate_tasks(shippers, orders)
             self._assign(shippers, orders)
 
-            # 2) Xác định goal mỗi shipper: deliver (đang mang) / pickup / idle
             goal_of: Dict[int, Tuple[Optional[Cell], str]] = {}
             goal_cells = set()
             for sh in shippers:
@@ -304,8 +248,6 @@ class MAPDCBSSolver(Solver):
                 if goal_of[sh.id][0] is not None:
                     goal_cells.add(goal_of[sh.id][0])
 
-            # 3) Agent idle = chướng ngại tĩnh. Nếu idle đang đứng trên goal của
-            #    agent khác thì đẩy nó né sang ô trống bên cạnh (tránh kẹt).
             pos_of = {sh.id: (sh.r, sh.c) for sh in shippers}
             static = set()
             for sh in shippers:
@@ -315,16 +257,14 @@ class MAPDCBSSolver(Solver):
                         free = [n for n in self._neighbors(pos_of[sh.id])
                                 if n != pos_of[sh.id] and n not in goal_cells]
                         if free:
-                            goal_of[sh.id] = (free[0], "M")  # né 1 bước
+                            goal_of[sh.id] = (free[0], "M")
                             continue
                     static.add(pos_of[sh.id])
 
-            # 4) CBS cho các agent có goal
             agents = [(sh.id, pos_of[sh.id], goal_of[sh.id][0])
                       for sh in shippers if goal_of[sh.id][0] is not None]
             paths = self._cbs(agents, frozenset(static))
 
-            # 5) Sinh action: đi 1 bước theo path, kèm cargo_op khi tới goal
             actions: Dict[int, Tuple[str, int]] = {}
             for sh in shippers:
                 g, typ = goal_of[sh.id]
@@ -337,9 +277,9 @@ class MAPDCBSSolver(Solver):
                 op = 0
                 if nxt == g:
                     if typ == "P":
-                        op = 1   # nhặt hàng
+                        op = 1
                     elif typ == "D":
-                        op = 2   # giao hàng
+                        op = 2
                 actions[sh.id] = (move, op)
 
             obs, _, _, _ = self.env.step(actions)
