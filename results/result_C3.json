@@ -1,0 +1,93 @@
+{
+  "config_name": "C3",
+  "orders_total_fixed": 40,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "Greedy BFS",
+      "config_name": "C3",
+      "total_orders": 40,
+      "orders_generated": 40,
+      "delivered": 37,
+      "on_time": 34,
+      "late": 3,
+      "missed": 3,
+      "delivery_rate": 92.5,
+      "on_time_rate": 91.89189189189189,
+      "total_reward": 860.0718,
+      "total_movecost": -6.3787,
+      "net_reward": 853.6931,
+      "elapsed_sec": 0.0773,
+      "shipper_rewards": [
+        337.6829,
+        311.1314,
+        204.8788
+      ],
+      "status": "OK",
+      "wall_sec": 0.08
+    },
+    {
+      "method": "VRPOrToolsSolver",
+      "config_name": "C3",
+      "total_orders": 40,
+      "orders_generated": 0,
+      "delivered": 0,
+      "on_time": 0,
+      "late": 0,
+      "missed": 40,
+      "delivery_rate": 0.0,
+      "on_time_rate": 0.0,
+      "total_reward": 0.0,
+      "total_movecost": 0.0,
+      "net_reward": 0.0,
+      "elapsed_sec": 0.0,
+      "shipper_rewards": [],
+      "status": "ERROR",
+      "error": "'VRPOrToolsSolver' object has no attribute 'cfg'",
+      "wall_sec": 0.0
+    },
+    {
+      "method": "ACO",
+      "config_name": "C3",
+      "total_orders": 40,
+      "orders_generated": 40,
+      "delivered": 36,
+      "on_time": 33,
+      "late": 3,
+      "missed": 4,
+      "delivery_rate": 90.0,
+      "on_time_rate": 91.66666666666667,
+      "total_reward": 851.8194,
+      "total_movecost": -7.0599,
+      "net_reward": 844.7595,
+      "elapsed_sec": 52.0998,
+      "shipper_rewards": [
+        359.4775,
+        279.1823,
+        206.0997
+      ],
+      "status": "OK",
+      "wall_sec": 52.1
+    },
+    {
+      "method": "MAPDCBSSolver",
+      "config_name": "C3",
+      "total_orders": 40,
+      "orders_generated": 0,
+      "delivered": 0,
+      "on_time": 0,
+      "late": 0,
+      "missed": 40,
+      "delivery_rate": 0.0,
+      "on_time_rate": 0.0,
+      "total_reward": 0.0,
+      "total_movecost": 0.0,
+      "net_reward": 0.0,
+      "elapsed_sec": 0.0,
+      "shipper_rewards": [],
+      "status": "ERROR",
+      "error": "'MAPDCBSSolver' object has no attribute 'cfg'",
+      "wall_sec": 0.0
+    }
+  ]
+}
